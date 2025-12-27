@@ -250,18 +250,23 @@ export async function saveSlackWebhook(userId: string, webhookUrl: string) {
       .single()
 
     if (existing) {
-      // 업데이트
+      // 업데이트 (알림도 자동으로 활성화)
       const { error } = await supabase
         .from('user_settings')
-        .update({ slack_webhook_url: webhookUrl, updated_at: new Date().toISOString() })
+        .update({ 
+          slack_webhook_url: webhookUrl, 
+          notification_enabled: true,
+          updated_at: new Date().toISOString() 
+        })
         .eq('user_id', userId)
 
       if (error) throw error
     } else {
-      // 새로 생성
+      // 새로 생성 (알림 활성화 상태로)
       const { error } = await supabase.from('user_settings').insert({
         user_id: userId,
         slack_webhook_url: webhookUrl,
+        notification_enabled: true,
       })
 
       if (error) throw error
