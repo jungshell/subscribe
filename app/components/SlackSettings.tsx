@@ -139,18 +139,18 @@ export default function SlackSettings({ userId }: SlackSettingsProps) {
 
         {message && (
           <div
-            className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
+            className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm whitespace-pre-line ${
               message.type === 'success'
                 ? 'bg-[#e6f4ea] border border-[#81c995] text-[#137333]'
                 : 'bg-[#fce8e6] border border-[#f28b82] text-[#c5221f]'
             }`}
           >
             {message.type === 'success' ? (
-              <CheckCircle className="h-5 w-5 flex-shrink-0" />
+              <CheckCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             ) : (
-              <XCircle className="h-5 w-5 flex-shrink-0" />
+              <XCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             )}
-            <span>{message.text}</span>
+            <span className="flex-1">{message.text}</span>
           </div>
         )}
 
