@@ -47,10 +47,16 @@ git push -u origin main
 1. [Vercel](https://vercel.com) 접속
 2. **Sign Up** 또는 **Log In** (GitHub 계정으로 로그인)
 3. **Add New Project** 클릭
-4. GitHub 저장소 선택
+4. GitHub 저장소 선택 (`jungshell/subscribe`)
 5. **Import** 클릭
 
-#### 3단계: 환경 변수 설정
+#### 3단계: 프로젝트 이름 설정
+
+⚠️ **중요**: "subscribe"라는 이름이 이미 사용 중이라면:
+- 다른 이름을 사용하세요 (예: `subscribe-handler`, `subscription-manager`, `subcribe-handler`)
+- 또는 기존 프로젝트를 삭제하고 새로 만들기
+
+#### 4단계: 환경 변수 설정
 
 Vercel 대시보드에서:
 1. **Environment Variables** 섹션으로 이동
@@ -67,14 +73,14 @@ CRON_SECRET = your_random_secret_key (선택사항)
 - `NEXT_PUBLIC_`로 시작하는 변수는 자동으로 클라이언트에 노출됩니다
 - `GEMINI_API_KEY`와 `CRON_SECRET`은 서버에서만 사용됩니다
 
-#### 4단계: 배포 설정
+#### 5단계: 배포 설정
 
 - **Framework Preset**: Next.js (자동 감지됨)
 - **Root Directory**: `./` (기본값)
 - **Build Command**: `npm run build` (자동)
 - **Output Directory**: `.next` (자동)
 
-#### 5단계: 배포 실행
+#### 6단계: 배포 실행
 
 **Deploy** 버튼 클릭!
 
@@ -103,7 +109,7 @@ vercel
 ```
 
 첫 배포 시:
-- 프로젝트 이름 입력
+- 프로젝트 이름 입력 (기존 이름과 다르게)
 - 환경 변수 입력 (또는 나중에 대시보드에서 설정)
 
 #### 4단계: 프로덕션 배포
@@ -197,6 +203,15 @@ Vercel 대시보드 > 프로젝트 > **Settings** > **Domains**
    ```
    로컬에서 빌드가 성공하는지 확인
 
+### 프로젝트 이름 중복 오류
+
+**오류**: "The specified name is already used for a different Git repository"
+
+**해결 방법**:
+1. 다른 이름 사용 (예: `subscribe-handler`, `subscription-manager`)
+2. 기존 프로젝트 삭제 후 재생성
+3. 기존 프로젝트에 새 저장소 연결
+
 ### 환경 변수 오류
 
 - `NEXT_PUBLIC_`로 시작하지 않는 변수는 클라이언트에서 접근 불가
@@ -256,4 +271,3 @@ Vercel 대시보드 > 프로젝트 > **Settings** > **Domains**
 ---
 
 **질문이나 문제가 있으면 Vercel 대시보드의 로그를 확인하세요!**
-
