@@ -37,7 +37,7 @@ git add .
 git commit -m "Initial commit"
 
 # GitHub에 새 저장소 생성 후
-git remote add origin https://github.com/your-username/your-repo-name.git
+git remote add origin https://github.com/jungshell/subscribe.git
 git branch -M main
 git push -u origin main
 ```
