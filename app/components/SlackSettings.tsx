@@ -80,17 +80,24 @@ export default function SlackSettings({ userId }: SlackSettingsProps) {
     setMessage(null)
 
     try {
+      console.log('🔔 알림 테스트 시작...', { userId, webhookUrl: webhookUrl.substring(0, 30) + '...' })
       const result = await testNotification(userId)
+      console.log('📊 테스트 결과:', result)
+      
       if (result.success) {
         setMessage({ type: 'success', text: result.message || '테스트 알림이 전송되었습니다!' })
-        setTimeout(() => setMessage(null), 5000)
+        setTimeout(() => setMessage(null), 10000) // 10초로 연장
       } else {
-        setMessage({ type: 'error', text: result.message || '테스트 실패' })
+        const errorMsg = result.message || '테스트 실패'
+        console.error('❌ 테스트 실패:', errorMsg, result.details)
+        setMessage({ type: 'error', text: errorMsg })
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '테스트 중 오류가 발생했습니다.'
+      console.error('💥 테스트 예외 발생:', error)
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : '테스트 중 오류가 발생했습니다.',
+        text: `오류: ${errorMsg}`,
       })
     } finally {
       setIsTesting(false)
