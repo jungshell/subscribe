@@ -42,23 +42,34 @@ export async function testNotification(userId: string) {
     }
 
     // 테스트 메시지 전송 (실제 구독과 관계없이)
-    const testResult = await sendSlackNotification(
-      userSettings.slack_webhook_url,
-      '🧪 정기구독 해지 방어기 테스트 알림\n\n이것은 테스트 메시지입니다. 알림 설정이 정상적으로 작동하고 있습니다!',
-      {
-        serviceName: '테스트 서비스',
-        amount: 10000,
-        currency: 'KRW',
-        nextBillingDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        daysUntilBilling: 3,
-      }
-    )
+    let testResult = false
+    let testError: string | null = null
+    
+    try {
+      testResult = await sendSlackNotification(
+        userSettings.slack_webhook_url,
+        '🧪 정기구독 해지 방어기 테스트 알림\n\n이것은 테스트 메시지입니다. 알림 설정이 정상적으로 작동하고 있습니다!',
+        {
+          serviceName: '테스트 서비스',
+          amount: 10000,
+          currency: 'KRW',
+          nextBillingDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          daysUntilBilling: 3,
+        }
+      )
+    } catch (error) {
+      testError = error instanceof Error ? error.message : String(error)
+      console.error('테스트 알림 전송 오류:', error)
+    }
 
     if (!testResult) {
       return {
         success: false,
-        message: 'Slack 알림 전송에 실패했습니다. Webhook URL을 확인해주세요.',
-        details: null,
+        message: `Slack 알림 전송에 실패했습니다.${testError ? ` 오류: ${testError}` : ''} Webhook URL을 확인해주세요.`,
+        details: {
+          webhookUrl: userSettings.slack_webhook_url ? '설정됨' : '없음',
+          error: testError,
+        },
       }
     }
 

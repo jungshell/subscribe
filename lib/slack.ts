@@ -97,13 +97,24 @@ export async function sendSlackNotification(
     })
 
     if (!response.ok) {
-      console.error('Slack 알림 전송 실패:', response.status, response.statusText)
+      const errorText = await response.text().catch(() => '응답 읽기 실패')
+      console.error('Slack 알림 전송 실패:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        webhookUrl: webhookUrl.substring(0, 50) + '...',
+      })
       return false
     }
 
+    const responseText = await response.text().catch(() => 'ok')
+    console.log('Slack 알림 전송 성공:', responseText)
     return true
   } catch (error) {
-    console.error('Slack 알림 전송 오류:', error)
+    console.error('Slack 알림 전송 오류:', {
+      error: error instanceof Error ? error.message : String(error),
+      webhookUrl: webhookUrl.substring(0, 50) + '...',
+    })
     return false
   }
 }
