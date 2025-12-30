@@ -112,23 +112,21 @@ async function hasNotificationBeenSent(
 
 /**
  * 다음 결제일이 지정된 일수 이내인 구독을 찾아 Slack 알림 전송
+ * 여러 알림 시점 지원
  */
 export async function checkAndSendNotifications(
   userId: string,
-  daysBefore: number = 3
+  daysBefore?: number
 ) {
   try {
     const today = new Date()
-    const targetDate = new Date(today)
-    targetDate.setDate(today.getDate() + daysBefore)
 
-    // 활성 구독 중 다음 결제일이 지정된 일수 이내인 것들 조회
+    // 활성 구독 조회
     const { data: subscriptions, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .lte('next_billing_date', targetDate.toISOString().split('T')[0])
       .gte('next_billing_date', today.toISOString().split('T')[0])
 
     if (error) {
@@ -143,7 +141,7 @@ export async function checkAndSendNotifications(
     // 사용자의 Slack Webhook URL 및 설정 조회
     const { data: userSettings, error: settingsError } = await supabase
       .from('user_settings')
-      .select('slack_webhook_url, notification_enabled, notification_days_before')
+      .select('slack_webhook_url, notification_enabled, notification_days_before, notification_days_before_array')
       .eq('user_id', userId)
       .single()
 
@@ -165,9 +163,17 @@ export async function checkAndSendNotifications(
       }
     }
 
-    // 사용자 설정의 notification_days_before 사용 (없으면 기본값 3일)
-    const notificationDaysBefore =
-      userSettings.notification_days_before || daysBefore
+    // 알림 시점 배열 사용 (여러 시점 지원)
+    let notificationDaysArray: number[] = []
+    if (userSettings.notification_days_before_array && Array.isArray(userSettings.notification_days_before_array) && userSettings.notification_days_before_array.length > 0) {
+      notificationDaysArray = userSettings.notification_days_before_array
+    } else if (userSettings.notification_days_before) {
+      notificationDaysArray = [userSettings.notification_days_before]
+    } else if (daysBefore !== undefined) {
+      notificationDaysArray = [daysBefore]
+    } else {
+      notificationDaysArray = [3] // 기본값
+    }
 
     // 각 구독에 대해 알림 전송
     let sentCount = 0
@@ -178,45 +184,48 @@ export async function checkAndSendNotifications(
       const nextDate = new Date(subscription.next_billing_date)
       const daysUntilBilling = differenceInDays(nextDate, today)
 
-      if (daysUntilBilling >= 0 && daysUntilBilling <= notificationDaysBefore) {
-        // 중복 알림 방지 체크
-        const alreadySent = await hasNotificationBeenSent(
-          subscription.id,
-          daysUntilBilling
-        )
+      // 각 알림 시점에 대해 체크
+      for (const notificationDays of notificationDaysArray) {
+        if (daysUntilBilling === notificationDays) {
+          // 중복 알림 방지 체크
+          const alreadySent = await hasNotificationBeenSent(
+            subscription.id,
+            notificationDays
+          )
 
-        if (alreadySent) {
-          skippedCount++
-          continue
-        }
-
-        // 재시도 로직이 포함된 알림 전송
-        const result = await sendSlackNotificationWithRetry(
-          userSettings.slack_webhook_url,
-          {
-            serviceName: subscription.service_name,
-            amount: subscription.amount,
-            currency: subscription.currency,
-            nextBillingDate: subscription.next_billing_date,
-            daysUntilBilling,
+          if (alreadySent) {
+            skippedCount++
+            continue
           }
-        )
 
-        // 알림 히스토리 저장
-        await saveNotificationHistory(
-          userId,
-          subscription.id,
-          daysUntilBilling,
-          result.success ? 'sent' : 'failed',
-          userSettings.slack_webhook_url,
-          result.error || null,
-          result.success ? 0 : MAX_RETRY_ATTEMPTS
-        )
+          // 재시도 로직이 포함된 알림 전송
+          const result = await sendSlackNotificationWithRetry(
+            userSettings.slack_webhook_url,
+            {
+              serviceName: subscription.service_name,
+              amount: subscription.amount,
+              currency: subscription.currency,
+              nextBillingDate: subscription.next_billing_date,
+              daysUntilBilling,
+            }
+          )
 
-        if (result.success) {
-          sentCount++
-        } else {
-          errors.push(`${subscription.service_name}: ${result.error}`)
+          // 알림 히스토리 저장
+          await saveNotificationHistory(
+            userId,
+            subscription.id,
+            notificationDays,
+            result.success ? 'sent' : 'failed',
+            userSettings.slack_webhook_url,
+            result.error || null,
+            result.success ? 0 : MAX_RETRY_ATTEMPTS
+          )
+
+          if (result.success) {
+            sentCount++
+          } else {
+            errors.push(`${subscription.service_name}: ${result.error}`)
+          }
         }
       }
     }
@@ -278,6 +287,96 @@ export async function saveSlackWebhook(userId: string, webhookUrl: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : '저장 실패',
+    }
+  }
+}
+
+/**
+ * 알림 설정 업데이트 (여러 시점 설정)
+ */
+export async function updateNotificationSettings(
+  userId: string,
+  settings: {
+    notification_enabled?: boolean
+    notification_days_before_array?: number[]
+    notification_days_before?: number
+    email_notifications?: boolean
+    email_address?: string
+  }
+) {
+  try {
+    const { data: existing } = await supabase
+      .from('user_settings')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    const updateData: any = {
+      ...settings,
+      updated_at: new Date().toISOString(),
+    }
+
+    // notification_days_before_array가 없으면 notification_days_before를 배열로 변환
+    if (updateData.notification_days_before && !updateData.notification_days_before_array) {
+      updateData.notification_days_before_array = [updateData.notification_days_before]
+    }
+
+    if (existing) {
+      const { error } = await supabase
+        .from('user_settings')
+        .update(updateData)
+        .eq('user_id', userId)
+
+      if (error) throw error
+    } else {
+      const { error } = await supabase.from('user_settings').insert({
+        user_id: userId,
+        ...updateData,
+      })
+
+      if (error) throw error
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('알림 설정 업데이트 오류:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '설정 저장 실패',
+    }
+  }
+}
+
+/**
+ * 알림 설정 조회
+ */
+export async function getNotificationSettings(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      throw error
+    }
+
+    return {
+      notification_enabled: data?.notification_enabled ?? true,
+      notification_days_before: data?.notification_days_before ?? 3,
+      notification_days_before_array: data?.notification_days_before_array ?? [3],
+      email_notifications: data?.email_notifications ?? false,
+      email_address: data?.email_address ?? null,
+    }
+  } catch (error) {
+    console.error('알림 설정 조회 오류:', error)
+    return {
+      notification_enabled: true,
+      notification_days_before: 3,
+      notification_days_before_array: [3],
+      email_notifications: false,
+      email_address: null,
     }
   }
 }

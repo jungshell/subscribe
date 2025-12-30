@@ -165,6 +165,67 @@ export async function getSubscriptions(userId: string) {
 }
 
 /**
+ * 구독 정보 수정
+ */
+export async function updateSubscription(
+  subscriptionId: string,
+  updates: {
+    service_name?: string
+    amount?: number
+    currency?: string
+    next_billing_date?: string
+    cycle?: 'monthly' | 'yearly' | 'weekly' | 'quarterly'
+    category?: string
+    tags?: string[]
+    billing_email?: string
+    service_url?: string
+    notes?: string
+  }
+) {
+  try {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .update(updates)
+      .eq('id', subscriptionId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase 업데이트 오류:', error)
+      throw new Error('구독 정보 수정에 실패했습니다.')
+    }
+
+    return data
+  } catch (error) {
+    console.error('수정 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 구독 정보 조회 (단일)
+ */
+export async function getSubscription(subscriptionId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('id', subscriptionId)
+      .single()
+
+    if (error) {
+      console.error('Supabase 조회 오류:', error)
+      throw new Error('구독 정보를 불러오는데 실패했습니다.')
+    }
+
+    return data
+  } catch (error) {
+    console.error('조회 오류:', error)
+    throw error
+  }
+}
+
+/**
  * 구독 정보 삭제 (해지)
  */
 export async function cancelSubscription(subscriptionId: string) {
@@ -184,6 +245,260 @@ export async function cancelSubscription(subscriptionId: string) {
     return data
   } catch (error) {
     console.error('해지 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 구독 정보 검색 및 필터링
+ */
+export async function searchSubscriptions(
+  userId: string,
+  filters: {
+    search?: string
+    category?: string
+    minAmount?: number
+    maxAmount?: number
+    cycle?: string
+    sortBy?: 'next_billing_date' | 'amount' | 'service_name'
+    sortOrder?: 'asc' | 'desc'
+  } = {}
+) {
+  try {
+    let query = supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+
+    // 검색어 필터
+    if (filters.search) {
+      query = query.or(`service_name.ilike.%${filters.search}%,notes.ilike.%${filters.search}%`)
+    }
+
+    // 카테고리 필터
+    if (filters.category) {
+      query = query.eq('category', filters.category)
+    }
+
+    // 금액 범위 필터
+    if (filters.minAmount !== undefined) {
+      query = query.gte('amount', filters.minAmount)
+    }
+    if (filters.maxAmount !== undefined) {
+      query = query.lte('amount', filters.maxAmount)
+    }
+
+    // 주기 필터
+    if (filters.cycle) {
+      query = query.eq('cycle', filters.cycle)
+    }
+
+    // 정렬
+    const sortBy = filters.sortBy || 'next_billing_date'
+    const sortOrder = filters.sortOrder || 'asc'
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Supabase 조회 오류:', error)
+      throw new Error('구독 정보를 불러오는데 실패했습니다.')
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('검색 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 결제 내역 저장
+ */
+export async function savePaymentHistory(
+  userId: string,
+  subscriptionId: string,
+  paymentDate: string,
+  amount: number,
+  currency: string = 'KRW',
+  status: 'paid' | 'failed' | 'refunded' = 'paid',
+  notes?: string
+) {
+  try {
+    const { data, error } = await supabase
+      .from('payment_history')
+      .insert({
+        user_id: userId,
+        subscription_id: subscriptionId,
+        payment_date: paymentDate,
+        amount,
+        currency,
+        status,
+        notes,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase 저장 오류:', error)
+      throw new Error('결제 내역 저장에 실패했습니다.')
+    }
+
+    return data
+  } catch (error) {
+    console.error('저장 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 결제 내역 조회
+ */
+export async function getPaymentHistory(
+  userId: string,
+  subscriptionId?: string,
+  startDate?: string,
+  endDate?: string
+) {
+  try {
+    let query = supabase
+      .from('payment_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('payment_date', { ascending: false })
+
+    if (subscriptionId) {
+      query = query.eq('subscription_id', subscriptionId)
+    }
+
+    if (startDate) {
+      query = query.gte('payment_date', startDate)
+    }
+
+    if (endDate) {
+      query = query.lte('payment_date', endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Supabase 조회 오류:', error)
+      throw new Error('결제 내역을 불러오는데 실패했습니다.')
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('조회 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 통계 조회
+ */
+export async function getStatistics(userId: string, year?: number, month?: number) {
+  try {
+    const subscriptions = await getSubscriptions(userId)
+    
+    // 월간/연간 통계 계산
+    const stats = {
+      totalSubscriptions: subscriptions.length,
+      monthlyTotal: 0,
+      yearlyTotal: 0,
+      byCategory: {} as Record<string, number>,
+      byCycle: {} as Record<string, number>,
+    }
+
+    subscriptions.forEach((sub) => {
+      const amount = Number(sub.amount)
+      const krwAmount = sub.currency === 'KRW' ? amount : amount * 1 // 환율 변환은 별도 처리 필요
+
+      // 주기별 계산
+      if (sub.cycle === 'monthly') {
+        stats.monthlyTotal += krwAmount
+        stats.yearlyTotal += krwAmount * 12
+      } else if (sub.cycle === 'yearly') {
+        stats.monthlyTotal += krwAmount / 12
+        stats.yearlyTotal += krwAmount
+      } else if (sub.cycle === 'quarterly') {
+        stats.monthlyTotal += krwAmount / 3
+        stats.yearlyTotal += krwAmount * 4
+      } else if (sub.cycle === 'weekly') {
+        stats.monthlyTotal += krwAmount * 4.33
+        stats.yearlyTotal += krwAmount * 52
+      }
+
+      // 카테고리별 집계
+      if (sub.category) {
+        stats.byCategory[sub.category] = (stats.byCategory[sub.category] || 0) + krwAmount
+      }
+
+      // 주기별 집계
+      stats.byCycle[sub.cycle] = (stats.byCycle[sub.cycle] || 0) + krwAmount
+    })
+
+    return stats
+  } catch (error) {
+    console.error('통계 조회 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 데이터 내보내기 (CSV 형식)
+ */
+export async function exportSubscriptionsToCSV(userId: string): Promise<string> {
+  try {
+    const subscriptions = await getSubscriptions(userId)
+    
+    const headers = [
+      '서비스명',
+      '금액',
+      '통화',
+      '다음 결제일',
+      '주기',
+      '카테고리',
+      '태그',
+      '결제 이메일',
+      '서비스 URL',
+      '메모',
+    ]
+
+    const rows = subscriptions.map((sub) => [
+      sub.service_name,
+      sub.amount,
+      sub.currency,
+      sub.next_billing_date,
+      sub.cycle,
+      sub.category || '',
+      (sub.tags || []).join(', '),
+      sub.billing_email || '',
+      sub.service_url || '',
+      sub.notes || '',
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+
+    return csvContent
+  } catch (error) {
+    console.error('CSV 내보내기 오류:', error)
+    throw error
+  }
+}
+
+/**
+ * 데이터 내보내기 (JSON 형식)
+ */
+export async function exportSubscriptionsToJSON(userId: string) {
+  try {
+    const subscriptions = await getSubscriptions(userId)
+    return JSON.stringify(subscriptions, null, 2)
+  } catch (error) {
+    console.error('JSON 내보내기 오류:', error)
     throw error
   }
 }

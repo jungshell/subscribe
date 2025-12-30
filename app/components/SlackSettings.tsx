@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Slack, CheckCircle, XCircle, Loader2, Bell } from 'lucide-react'
 import { saveSlackWebhook, getSlackWebhook } from '@/app/actions/notifications'
 import { testNotification } from '@/app/actions/test-notification'
+import NotificationSettings from './NotificationSettings'
 
 interface SlackSettingsProps {
   userId: string
@@ -207,6 +208,11 @@ export default function SlackSettings({ userId }: SlackSettingsProps) {
           <li>워크스페이스에 추가하고 Webhook URL 복사</li>
           <li>위 입력창에 URL 붙여넣기</li>
         </ol>
+      </div>
+
+      {/* 알림 시점 설정 */}
+      <div className="mt-6 border-t border-[#dadce0] pt-6">
+        <NotificationSettings userId={userId} />
       </div>
     </div>
   )

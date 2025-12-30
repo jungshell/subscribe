@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, DollarSign, AlertCircle, ExternalLink } from 'lucide-react'
+import { Calendar, DollarSign, AlertCircle, ExternalLink, Edit, Tag } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
 import { ko } from 'date-fns/locale/ko'
 import { formatCurrencyWithKRW } from '@/lib/exchange-rate'
@@ -12,7 +12,10 @@ interface SubscriptionCardProps {
   currency: string
   nextBillingDate: string
   cycle: string
+  category?: string
+  tags?: string[]
   onCancel?: (id: string) => void
+  onEdit?: (id: string) => void
 }
 
 export default function SubscriptionCard({
@@ -22,7 +25,10 @@ export default function SubscriptionCard({
   currency,
   nextBillingDate,
   cycle,
+  category,
+  tags,
   onCancel,
+  onEdit,
 }: SubscriptionCardProps) {
   const nextDate = new Date(nextBillingDate)
   const today = new Date()
@@ -65,8 +71,41 @@ export default function SubscriptionCard({
       )}
 
       <div className="space-y-5">
-        {/* 서비스명 */}
-        <h3 className="text-xl font-normal text-[#202124] leading-tight">{serviceName}</h3>
+        {/* 서비스명 및 카테고리 */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <h3 className="text-xl font-normal text-[#202124] leading-tight">{serviceName}</h3>
+            {category && (
+              <span className="mt-1 inline-block rounded-full bg-[#e8f0fe] px-2.5 py-0.5 text-xs font-medium text-[#1a73e8]">
+                {category}
+              </span>
+            )}
+          </div>
+          {onEdit && (
+            <button
+              onClick={() => onEdit(id)}
+              className="rounded-full p-2 text-[#5f6368] hover:bg-[#f1f3f4] transition-colors"
+              title="수정"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* 태그 */}
+        {tags && tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2 py-0.5 text-xs text-[#5f6368]"
+              >
+                <Tag className="h-3 w-3" />
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 금액 및 주기 */}
         <div className="flex items-baseline gap-2">
