@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // 모든 활성 사용자 조회 (Slack Webhook이 설정되고 알림이 활성화된 사용자)
     const { data: activeUsers, error: usersError } = await supabase
       .from('user_settings')
-      .select('user_id, notification_days_before')
+      .select('user_id, notification_days_before, notification_days_before_array')
       .eq('notification_enabled', true)
       .not('slack_webhook_url', 'is', null)
 
@@ -46,12 +46,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 모든 활성 사용자에 대해 알림 체크 (병렬 처리)
+    // checkAndSendNotifications 함수가 이미 여러 알림 시점을 지원하므로 daysBefore는 undefined로 전달
     const results = await Promise.allSettled(
       activeUsers.map(async (user) => {
-        const daysBefore = user.notification_days_before || 3
         return {
           userId: user.user_id,
-          result: await checkAndSendNotifications(user.user_id, daysBefore),
+          result: await checkAndSendNotifications(user.user_id), // 여러 시점 자동 지원
         }
       })
     )
